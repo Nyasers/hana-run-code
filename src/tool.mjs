@@ -35,9 +35,10 @@ export const name = "hana_run_code";
 
 export const description = [
   "跑一段临时 Node / TypeScript 程序并只回传它的 stdout / stderr。",
-  "适合：批量遍历文件、统计与聚合、读一堆文档只取结论、需要 fs 或子进程的一次性任务。",
+  "凡是能用 Node 表达而不用改仓库文件的一次性计算，优先用它而不是 shell 命令：算 hash、列目录并过滤、比对两个文件、批量改名前的预演、读多个文档只取结论、JSON/YAML 处理、统计与聚合、起子进程跑一条命令。",
+  "比起 shell（pwsh/bash）的优势：程序正文直接交给 node，中间不过引号与变量展开，不会有转义咬人；结构化数据可以直接 return，不会被表格格式化截断；一段逻辑可以用临时变量拆开，而不是拼成一条管道。",
   "程序里没有宿主工具（不能调 read/grep/web_search）——它的能力来自 Node 本身。",
-  "程序在独立 node 子进程里跑，顶层 await 与 return 都可用；return 的值会自动打印。",
+  "程序在独立 node 子进程里跑，顶层 await 与 return 都可用；return 的值会自动打印（字符串原样，其余 JSON）。",
   "可以用 TypeScript，但只支持 erasable 语法（类型注解、interface、type、泛型、as）：类型会被擦除，不做转译，所以 enum / namespace 这类需要生成代码的写法会报错。",
   "沙箱：默认 workspace（可读写 cwd 与系统临时目录），readonly 能读不能写，inherit 沿用宿主授权。",
   "输出各自截断到 256KB。",
@@ -58,7 +59,7 @@ export const parameters = {
     cwd: {
       type: "string",
       description:
-        "工作目录（绝对路径），同时是沙箱的授权根。相对路径按它解析；缺省为 App 数据目录。",
+        "工作目录（绝对路径），同时是沙箱的授权根。相对路径按它解析；缺省为 App 数据目录。要操作的目录不在其中时，把它设成目标目录。",
     },
     sandbox: {
       type: "string",
