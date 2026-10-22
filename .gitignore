@@ -1,0 +1,17 @@
+node_modules/
+dist/
+dist-extensions/
+releases/
+.tmp/
+
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+
+*.tsbuildinfo

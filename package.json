@@ -1,0 +1,16 @@
+{
+  "name": "hana-run-code",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.25.0",
+  "scripts": {
+    "build": "node scripts/build-app.mjs",
+    "build:server": "node scripts/build-server.mjs",
+    "check": "node scripts/build-app.mjs",
+    "pack": "node scripts/pack.mjs"
+  },
+  "devDependencies": {
+    "@rspack/core": "^2.2.3"
+  }
+}
