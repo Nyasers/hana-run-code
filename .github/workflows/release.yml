@@ -7,7 +7,6 @@ name: Release
 #   publish：建 release 并把 zip 传上去。只在 tag 场景跑；dispatch 场景留 artifact 供下载。
 #
 # 为什么不做平台矩阵：交付物是纯 JS，一个包跑遍所有平台，矩阵只是白花时间。
-name: Release
 
 on:
   push:

@@ -189,9 +189,11 @@ const CASES = {
   sandboxInherit: {
     args: {
       sandbox: "inherit",
+      // @DATA@ 由主程序换成本次的临时 dataDir：inherit 档的授权来自 App 进程自己
+      // 那串 NODE_OPTIONS，而那串里写的是真实 dataDir。写死本机路径在别处一定读不到。
       code: [
         'import { readdirSync } from "node:fs";',
-        'return { dataDir: readdirSync(process.env.HANA_DATA_DIR || "H:/.hanako/app-data/hana-run-code").length >= 0 ? "OK" : "?" };',
+        'return { dataDir: readdirSync("@DATA@").length >= 0 ? "OK" : "?" };',
       ].join("\n"),
       description: "inherit 沙箱：沿用宿主授权",
     },
@@ -279,13 +281,16 @@ const text = (r) => (r.content || []).map((c) => c.text || "").join("\n");
  * 全部报错，看起来像沙箱坏了。占位符让用例自带一个自己的临时目录。
  */
 const WS_PLACEHOLDER = "@WS@";
+const DATA_PLACEHOLDER = "@DATA@";
 
 // 用例用的工作区：建在 os.tmpdir() 下，模块加载时就有，供 withWorkspace 引用。
 const WS = fs.mkdtempSync(path.join(os.tmpdir(), "hrc-ws-")).replace(/\\/g, "/");
+// 本次的 dataDir：apply 与 inherit 用例共用同一个。
+const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "hrc-try-")).replace(/\\/g, "/");
 
 const withWorkspace = (value) =>
   typeof value === "string"
-    ? value.split(WS_PLACEHOLDER).join(WS)
+    ? value.split(WS_PLACEHOLDER).join(WS).split(DATA_PLACEHOLDER).join(DATA_DIR)
     : Array.isArray(value)
       ? value.map(withWorkspace)
       : value && typeof value === "object"
@@ -295,7 +300,7 @@ const withWorkspace = (value) =>
 
 async function main() {
   const only = process.argv[2];
-  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "hrc-try-"));
+  const dataDir = DATA_DIR;
 
   const mod = await import(pathToFileURL(BUNDLE).href);
   const dispose = mod.apply(makeCtx(dataDir));
