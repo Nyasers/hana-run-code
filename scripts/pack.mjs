@@ -27,6 +27,10 @@
  * 所以出包前调官方 validate_app.mjs，出包后对**归档本身**再调一次——校验的是将要
  * 被安装的那个 zip，而不是工作区里的目录。
  *
+ * 没有宿主的环境（CI runner）上这一步自动跳过，并在日志里说明。它拦的是「manifest
+ * 与宿主加载器不一致」，那种问题只能在装宿主的机器上判；而在没宿主的机器上假装
+ * 判过，比不判更糟。CI 管的是另一层：白名单、可复现性、工具用例。
+ *
  * ## 产物命名
  *
  *   dist-extensions/hana-run-code-<version>.zip
@@ -161,7 +165,10 @@ function writeZip(entries, outPath) {
 
 function runValidator(target, label) {
   if (!fs.existsSync(VALIDATOR)) {
-    fatal("找不到宿主的校验器：" + VALIDATOR + "\n  用 HANA_HOME 指定宿主目录，或 --no-validate 跳过（不用于交付）。");
+    // 没有宿主就没有这个校验器（CI runner 上就没有）。这不是本包的错，
+    // 只是少了一层宿主口径的确认，说清楚然后继续。
+    log("跳过宿主校验（" + label + "）：没有 " + VALIDATOR);
+    return;
   }
   log("校验（" + label + "）…");
   let stdout;
