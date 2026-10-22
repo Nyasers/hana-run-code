@@ -1,0 +1,51 @@
+name: CI
+
+# 只在 push master 与 PR 上跑。打 tag 时的出包由 release.yml 负责，职责不重叠。
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  build-and-test:
+    # runner 钉具体版本：镜像换代是 GitHub 侧的静默变化，CI 要可复现的地基。
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # 先打 bundle 再组装交付面：dist 只有三个文件，多一个都说明白名单漏了。
+      - run: pnpm run build:server
+      - run: pnpm run build
+
+      # 工具执行测试：17 个用例覆盖沙箱三档、tmp 开关、TS、超时、返回值边界与截断。
+      # 注意这测不出沙箱本身——runner 没有权限模型，那些用例只能在宿主里验。
+      - run: node scripts/dev/try-tool.mjs
+
+      # 出包并核对可复现性：同样的源码必须得到同样的 sha256。
+      - run: pnpm run pack
+      - name: 校验包可复现
+        run: |
+          FIRST=$(sha256sum dist-extensions/*.zip | cut -d' ' -f1)
+          pnpm run pack >/dev/null
+          SECOND=$(sha256sum dist-extensions/*.zip | cut -d' ' -f1)
+          echo "first  = $FIRST"
+          echo "second = $SECOND"
+          if [ "$FIRST" != "$SECOND" ]; then
+            echo "::error::两次打包的 sha256 不同，包不可复现"
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hana-run-code-zip
+          path: dist-extensions/*.zip
+          if-no-files-found: error

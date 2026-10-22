@@ -1,0 +1,94 @@
+name: Release
+
+# 触发：push tag v*（发版）/ workflow_dispatch（手动，只出 artifact 不建 release）
+#
+# 两段式：
+#   build：安装、构建、跑测试、出包，把 zip 传成 artifact。
+#   publish：建 release 并把 zip 传上去。只在 tag 场景跑；dispatch 场景留 artifact 供下载。
+#
+# 为什么不做平台矩阵：交付物是纯 JS，一个包跑遍所有平台，矩阵只是白花时间。
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm run build:server
+      - run: pnpm run build
+      - run: node scripts/dev/try-tool.mjs
+      - run: pnpm run pack
+
+      # tag 是 v0.1.0 而 manifest 写着别的版本，发出去的包装着错版本号。
+      # 这一步在出包之后拦，因为 manifest 的版本是 build 时从源读的。
+      - name: 校验 tag 与 manifest 版本一致
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          MANIFEST=$(node -p "JSON.parse(require('fs').readFileSync('dist/manifest.json','utf8')).version")
+          echo "tag = $TAG / manifest = $MANIFEST"
+          if [ "$TAG" != "$MANIFEST" ]; then
+            echo "::error::tag $TAG 与 manifest 版本 $MANIFEST 不一致"
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hana-run-code-zip
+          path: dist-extensions/*.zip
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: hana-run-code-zip
+          path: dist-extensions
+
+      # draft 建好再传：上传目标必然存在。去 draft 与标 latest 留给人工，
+      # 免得流水线自己把某个 prerelease 推成最新稳定版。
+      - name: 建 draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "release $TAG 已存在，跳过创建"
+          else
+            gh release create "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --draft \
+              --title "$TAG" \
+              --generate-notes
+          fi
+
+      - name: 上传安装包
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          for f in dist-extensions/*.zip; do
+            echo "上传 $f"
+            gh release upload "$TAG" "$f" --repo "$GITHUB_REPOSITORY" --clobber
+          done

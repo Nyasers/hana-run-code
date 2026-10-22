@@ -67,14 +67,14 @@ const CASES = {
   /** workspace 档：能读写 cwd，但读不到工作区其他部分 */
   sandboxWorkspace: {
     args: {
-      cwd: "E:/Hanako/Workspace/.tmp/ws-probe",
+      cwd: "@WS@",
       sandbox: "workspace",
       code: [
         'import { readdirSync, writeFileSync, unlinkSync } from "node:fs";',
         'const R = (p) => { try { readdirSync(p); return "OK"; } catch (e) { return "DENY"; } };',
-        'const r = R("E:/Hanako/Workspace/.tmp/ws-probe");',
-        'let w; try { writeFileSync("E:/Hanako/Workspace/.tmp/ws-probe/t.txt", "x"); w = "OK"; unlinkSync("E:/Hanako/Workspace/.tmp/ws-probe/t.txt"); } catch (e) { w = "DENY"; }',
-        'return { wsRead: r, wsWrite: w, outside: R("E:/Hanako/Workspace/notes") };',
+        'const r = R("@WS@");',
+        'let w; try { writeFileSync("@WS@/t.txt", "x"); w = "OK"; unlinkSync("@WS@/t.txt"); } catch (e) { w = "DENY"; }',
+        'return { wsRead: r, wsWrite: w, outside: R("C:/") };',
       ].join("\n"),
       description: "workspace 沙箱：读写 cwd、隔绝外部",
     },
@@ -84,12 +84,12 @@ const CASES = {
   /** readonly 档：能读不能写 */
   sandboxReadonly: {
     args: {
-      cwd: "E:/Hanako/Workspace/.tmp/ws-probe",
+      cwd: "@WS@",
       sandbox: "readonly",
       code: [
         'import { readdirSync, writeFileSync } from "node:fs";',
-        'let w; try { writeFileSync("E:/Hanako/Workspace/.tmp/ws-probe/t.txt", "x"); w = "OK"; } catch (e) { w = "DENY"; }',
-        'return { read: readdirSync("E:/Hanako/Workspace/.tmp/ws-probe").length >= 0 ? "OK" : "?", write: w };',
+        'let w; try { writeFileSync("@WS@/t.txt", "x"); w = "OK"; } catch (e) { w = "DENY"; }',
+        'return { read: readdirSync("@WS@").length >= 0 ? "OK" : "?", write: w };',
       ].join("\n"),
       description: "readonly 沙箱：能读不能写",
     },
@@ -99,7 +99,7 @@ const CASES = {
   /** tmp 默认可读写（许多库会往 tmp 落缓存） */
   tempOnByDefault: {
     args: {
-      cwd: "E:/Hanako/Workspace/.tmp/ws-probe",
+      cwd: "@WS@",
       sandbox: "workspace",
       code: [
         'import { writeFileSync, unlinkSync, readdirSync } from "node:fs";',
@@ -118,14 +118,14 @@ const CASES = {
   /** sandboxTemp=false：tmp 被关掉，工作区仍可写 */
   tempOffExplicitly: {
     args: {
-      cwd: "E:/Hanako/Workspace/.tmp/ws-probe",
+      cwd: "@WS@",
       sandbox: "workspace",
       sandboxTemp: false,
       code: [
         'import { writeFileSync, readdirSync } from "node:fs";',
         'import os from "node:os";',
         'let t; try { readdirSync(os.tmpdir()); t = "OK"; } catch (e) { t = "DENY"; }',
-        'let w; try { writeFileSync("E:/Hanako/Workspace/.tmp/ws-probe/z.txt", "x"); w = "OK"; } catch (e) { w = "DENY"; }',
+        'let w; try { writeFileSync("@WS@/z.txt", "x"); w = "OK"; } catch (e) { w = "DENY"; }',
         'return { tmp: t, workspace: w };',
       ].join("\n"),
       description: "sandboxTemp=false 关闭系统 tmp",
@@ -136,7 +136,7 @@ const CASES = {
   /** TypeScript：erasable 语法的类型注解能用 */
   tsTypes: {
     args: {
-      cwd: "E:/Hanako/Workspace/.tmp/ws-probe",
+      cwd: "@WS@",
       code: [
         'interface Row { name: string; n: number }',
         'const rows: Row[] = [{ name: "a", n: 1 }, { name: "b", n: 2 }];',
@@ -151,11 +151,11 @@ const CASES = {
   /** TypeScript：import type 能被擦除 */
   tsImportType: {
     args: {
-      cwd: "E:/Hanako/Workspace/.tmp/ws-probe",
+      cwd: "@WS@",
       code: [
         'import type { Stats } from "node:fs";',
         'import fs from "node:fs";',
-        'const s: Stats = fs.statSync("E:/Hanako/Workspace/.tmp/ws-probe");',
+        'const s: Stats = fs.statSync("@WS@");',
         'return { isDir: s.isDirectory() };',
       ].join("\n"),
       description: "TS import type",
@@ -166,7 +166,7 @@ const CASES = {
   /** TypeScript：纯 JS 照样能跑（向后兼容） */
   tsPlainJsStillWorks: {
     args: {
-      cwd: "E:/Hanako/Workspace/.tmp/ws-probe",
+      cwd: "@WS@",
       code: 'const a = 1;\nreturn { a, doubled: a * 2 };',
       description: "纯 JS 向后兼容",
     },
@@ -176,7 +176,7 @@ const CASES = {
   /** TypeScript：enum 需要代码生成，必须报错（erasable-only 的边界） */
   tsNonErasableRejected: {
     args: {
-      cwd: "E:/Hanako/Workspace/.tmp/ws-probe",
+      cwd: "@WS@",
       code: 'enum E { A }\nreturn { v: E.A };',
       description: "enum 应被拒",
     },
@@ -241,11 +241,11 @@ const CASES = {
   /** return 字符串与 import 共存 */
   returnEdges: {
     args: {
-      cwd: "E:/Hanako/Workspace/.tmp/ws-probe",
+      cwd: "@WS@",
       sandbox: "workspace",
       code: [
         'import { writeFileSync } from "node:fs";',
-        'writeFileSync("E:/Hanako/Workspace/.tmp/ws-probe/host.txt", "ok");',
+        'writeFileSync("@WS@/host.txt", "ok");',
         'return "wrote under workspace";',
       ].join("\n"),
       description: "return 字符串 + import 共存",
@@ -271,6 +271,27 @@ const CASES = {
 };
 
 const text = (r) => (r.content || []).map((c) => c.text || "").join("\n");
+
+/**
+ * 用例里引用的工作区路径写成占位符，跑之前换成实际目录。
+ *
+ * 不直接把本机绝对路径写进用例：换一台机器（或 CI）那段路径不存在，沙箱用例会
+ * 全部报错，看起来像沙箱坏了。占位符让用例自带一个自己的临时目录。
+ */
+const WS_PLACEHOLDER = "@WS@";
+
+// 用例用的工作区：建在 os.tmpdir() 下，模块加载时就有，供 withWorkspace 引用。
+const WS = fs.mkdtempSync(path.join(os.tmpdir(), "hrc-ws-")).replace(/\\/g, "/");
+
+const withWorkspace = (value) =>
+  typeof value === "string"
+    ? value.split(WS_PLACEHOLDER).join(WS)
+    : Array.isArray(value)
+      ? value.map(withWorkspace)
+      : value && typeof value === "object"
+        ? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, withWorkspace(v)]))
+        : value;
+
 
 async function main() {
   const only = process.argv[2];
@@ -305,7 +326,7 @@ async function main() {
     process.stdout.write("[try-tool] " + name.padEnd(18) + " ");
     let result;
     try {
-      result = await tool.execute({ ...c.args, context: { sessionPath: null, messageId: null, messageText: null } });
+      result = await tool.execute({ ...withWorkspace(c.args), context: { sessionPath: null, messageId: null, messageText: null } });
     } catch (e) {
       console.log("✗ 抛异常：" + ((e && e.message) || e));
       fail += 1;
