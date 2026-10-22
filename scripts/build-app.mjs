@@ -36,8 +36,6 @@ import { execFileSync } from "node:child_process";
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DIST = path.join(ROOT, "dist");
 
-/** 交付件白名单：**只有**列在这里的东西会进包。 */
-const DELIVERY_FILES = ["manifest.json"];
 /** 由构建脚本产出的文件（这里只断言它在位，不负责生成）。 */
 const BUILT_FILES = ["bin/app.mjs"];
 
@@ -66,12 +64,29 @@ function main() {
     fatal("服务端构建失败");
   }
 
-  // 2) 契约件（白名单逐个点名）
-  for (const name of DELIVERY_FILES) {
-    const src = path.join(ROOT, "src", name);
-    if (!fs.existsSync(src)) fatal("交付件缺失：src/" + name);
-    fs.copyFileSync(src, path.join(DIST, name));
+  // 2) 契约件：manifest 是派生件——除 version 外的字段都写在 src/manifest.json，
+  //    version 从 package.json 注入。两处手写迟早会对不上，而真源只该有一个。
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
+  if (typeof pkg.version !== "string" || !/^\d+\.\d+\.\d+/.test(pkg.version)) {
+    fatal("package.json 的 version 不是合法版本号：" + JSON.stringify(pkg.version));
   }
+  const srcManifestPath = path.join(ROOT, "src", "manifest.json");
+  if (!fs.existsSync(srcManifestPath)) fatal("交付件缺失：src/manifest.json");
+  const srcManifest = JSON.parse(fs.readFileSync(srcManifestPath, "utf8"));
+  if (Object.prototype.hasOwnProperty.call(srcManifest, "version")) {
+    // 源里再写一份就是第二个事实源。发现就报错，不静默覆盖。
+    fatal("src/manifest.json 不该写 version（它由 package.json 派生）：现在是 " + JSON.stringify(srcManifest.version));
+  }
+  const derived = { ...srcManifest };
+  // 保持原有字段顺序：version 跟在 name 后面，读起来和以前一样。
+  const ordered = {};
+  for (const [k, v] of Object.entries(derived)) {
+    ordered[k] = v;
+    if (k === "name") ordered.version = pkg.version;
+  }
+  if (!("version" in ordered)) ordered.version = pkg.version;
+  fs.writeFileSync(path.join(DIST, "manifest.json"), JSON.stringify(ordered, null, 2) + "\n", "utf8");
+  log("派生 manifest.json：version = " + pkg.version + "（源：src/manifest.json + package.json）");
 
   // 3) 身份图标：manifest.icon 是包根相对路径，源在 assets/
   const manifest = JSON.parse(fs.readFileSync(path.join(DIST, "manifest.json"), "utf8"));

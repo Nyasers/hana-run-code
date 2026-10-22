@@ -2,7 +2,6 @@
   "manifestVersion": 2,
   "id": "hana-run-code",
   "name": "Hana Run Code",
-  "version": "0.1.0",
   "description": "跑一段临时 Node 程序：可用 fs 与子进程，只把打印的内容交回对话",
   "entry": "bin/app.mjs",
   "icon": "icon.svg",
