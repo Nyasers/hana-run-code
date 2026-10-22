@@ -4,7 +4,7 @@ name: Release
 #
 # 两段式：
 #   build：安装、构建、跑测试、出包，把 zip 传成 artifact。
-#   publish：建 release 并把 zip 传上去。只在 tag 场景跑；dispatch 场景留 artifact 供下载。
+#   publish：把 zip 挂到一个 pre-release 上，发完回头核对不是 draft 且资产在位。
 #
 # 为什么不做平台矩阵：交付物是纯 JS，一个包跑遍所有平台，矩阵只是白花时间。
 
@@ -65,29 +65,50 @@ jobs:
           name: hana-run-code-zip
           path: dist-extensions
 
-      # draft 建好再传：上传目标必然存在。去 draft 与标 latest 留给人工，
-      # 免得流水线自己把某个 prerelease 推成最新稳定版。
-      - name: 建 draft release
+      # 一步出 pre-release：建的同时带上 zip 并标 prerelease。
+      # 不先建 draft 再传：draft 的 URL 是 untagged-<hash>，要等正式发布才挂到 tag 上；
+      # 而直接建成 prerelease 从第一秒起就是可下载的 releases/download/<tag>/<file>。
+      #
+      # 标 prerelease 而不是普通 release：latest 留给人工点，不让流水线把某个
+      # 刚出来的版本自动推成大家默认拿到的那个。
+      - name: 建 pre-release 并传包
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
         run: |
+          shopt -s nullglob
+          FILES=(dist-extensions/*.zip)
+          if [ ${#FILES[@]} -eq 0 ]; then
+            echo "::error::没有找到 zip，无法发布"
+            exit 1
+          fi
+          printf '待上传：%s\n' "${FILES[@]}"
+
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "release $TAG 已存在，跳过创建"
+            echo "release $TAG 已存在，改为追加上传"
+            gh release upload "$TAG" "${FILES[@]}" --repo "$GITHUB_REPOSITORY" --clobber
           else
-            gh release create "$TAG" \
+            gh release create "$TAG" "${FILES[@]}" \
               --repo "$GITHUB_REPOSITORY" \
-              --draft \
+              --prerelease \
               --title "$TAG" \
               --generate-notes
           fi
 
-      - name: 上传安装包
+      # 发完回头核：release 必须已经不是 draft，且资产真的在。
+      - name: 核对发布结果
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
         run: |
-          for f in dist-extensions/*.zip; do
-            echo "上传 $f"
-            gh release upload "$TAG" "$f" --repo "$GITHUB_REPOSITORY" --clobber
-          done
+          INFO=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,isPrerelease,assets)
+          echo "$INFO"
+          echo "$INFO" | node -e '
+            let s = "";
+            process.stdin.on("data", (c) => (s += c)).on("end", () => {
+              const r = JSON.parse(s);
+              if (r.isDraft) { console.error("::error::release 仍是 draft"); process.exit(1); }
+              if (!r.assets || r.assets.length === 0) { console.error("::error::release 没有资产"); process.exit(1); }
+              console.log("发布确认：prerelease=" + r.isPrerelease + "，资产 " + r.assets.length + " 个");
+            });
+          '
